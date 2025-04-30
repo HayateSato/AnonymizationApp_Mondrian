@@ -1,0 +1,53 @@
+Android Studio: 
+- Android Studio Ladybug | 2024.2.1 Patch 3
+
+
+
+Android SDK: Include the required API level (e.g., SDK API Level 33+).
+- SDK: Android 14.0 ("UpsideDownCake")
+- Compiled API Level: 34 
+- Min SDK: 31
+- Target SDK: 31
+
+
+
+Installed Plugins
+- com.chaquo.python: version 16.0.0 
+
+
+
+Python Environment:
+- Python 3.8
+- Used Libraries: 
+	- NumPy : !!!!! version name!!!!!
+	- Pandas: !!!!! version name!!!!!
+- Built-in Libraries: (requires no importing)
+	- os
+	- globe
+	- base64 
+Custom packages: (included in the file)
+	- algorithm.hierarchy_tree  
+
+
+
+Java JDK: Specify the version (e.g., JDK 17).
+- Source Compatibility: JavaVersion.VERSION 11
+- Target Compatibility: JavaVersion.VERSION 11
+
+
+
+Gradle Version: 
+- 8.9 
+- Kotlin
+
+
+
+ABI Filters: 
+- arm64-v8a" 
+- x86_64
+
+
+
+Used Emulator Name:
+- Medium Phone API 35 (Android 15)
+
