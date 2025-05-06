@@ -3,18 +3,23 @@ package com.example.pythoncalculation;
 import android.content.Context;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
-import android.os.AsyncTask;
 import android.os.Bundle;
+import android.os.Handler;
 import android.util.Log;
 import android.view.View;
 import android.widget.TextView;
 import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.appcompat.app.AlertDialog;
+import androidx.fragment.app.Fragment;
+import androidx.navigation.NavController;
+import androidx.navigation.fragment.NavHostFragment;
 
 import com.chaquo.python.android.AndroidPlatform;
 import com.chaquo.python.PyObject;
 import com.chaquo.python.Python;
 import com.example.pythoncalculation.databinding.ActivityMainBinding;
+import com.example.pythoncalculation.fragments.AnonymizationFragment;
 
 import org.eclipse.paho.client.mqttv3.IMqttActionListener;
 import org.eclipse.paho.client.mqttv3.IMqttAsyncClient;
@@ -25,8 +30,7 @@ import org.eclipse.paho.client.mqttv3.MqttCallback;
 import org.eclipse.paho.client.mqttv3.MqttConnectOptions;
 import org.eclipse.paho.client.mqttv3.MqttException;
 import org.eclipse.paho.client.mqttv3.MqttMessage;
-
-import java.lang.ref.WeakReference;
+import org.eclipse.paho.client.mqttv3.persist.MemoryPersistence;
 
 /**
  * MainActivity: The main entry point of the application.
@@ -37,15 +41,13 @@ import java.lang.ref.WeakReference;
  * The class is responsible for:
  * 1. Initializing the Python environment using Chaquopy
  * 2. Setting up MQTT communication for remote control
- * 3. Managing the UI interactions for data anonymization
- * 4. Coordinating between Java and Python components
+ * 3. Managing navigation between fragments
  */
 public class MainActivity extends AppCompatActivity {
 
     // MQTT Configuration
     private static final String TAG = "MQTT";
-//    private static final String MQTT_BROKER_URL = "tcp://172.23.219.123:1883"; // MQTT broker address (WSL)
-    private static final String MQTT_BROKER_URL = "tcp://192.168.8.126:1883"; // MQTT broker address (Windows)
+    private static final String MQTT_BROKER_URL = "tcp://192.168.8.126:1883"; // MQTT broker address
     // Consider using SSL if available: "ssl://172.23.219.123:8883"
     private static final String MQTT_TOPIC = "anonymization/commands"; // Topic to listen for commands
 
@@ -59,16 +61,19 @@ public class MainActivity extends AppCompatActivity {
     private static final String TAG_MAIN = "MainActivity";
     
     // UI Components
-    private ActivityMainBinding binding; // View binding to access UI elements
-    private TextView statusTextView; // TextView to display MQTT status
+    private ActivityMainBinding binding;
+    private TextView statusTextView;
     
     // MQTT Client
-    private IMqttAsyncClient mqttClient; // Interface for async MQTT communication
+    private IMqttAsyncClient mqttClient;
     
     // Python Components
-    private Python py; // Main Python interpreter instance
-    private PyObject inputReaderModule; // Python module for reading CSV files
-    private PyObject mondrianModule; // Python module for anonymization algorithm
+    private Python py;
+    private PyObject inputReaderModule;
+    private PyObject mondrianModule;
+    
+    // Navigation
+    private NavController navController;
 
     /**
      * Called when the activity is first created.
@@ -80,18 +85,22 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         
-        // Initialize UI with view binding (modern approach replacing findViewById)
+        // Initialize UI with view binding
         binding = ActivityMainBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
         
-        // Get reference to the status display from binding
+        // Get reference to the status display
         statusTextView = binding.statusTextView;
+        
+        // Get the NavController for managing fragment navigation
+        NavHostFragment navHostFragment = (NavHostFragment) getSupportFragmentManager()
+                .findFragmentById(R.id.nav_host_fragment);
+        if (navHostFragment != null) {
+            navController = navHostFragment.getNavController();
+        }
         
         // Initialize Python environment for anonymization algorithm
         initializePython();
-        
-        // Hide progress indicator until needed
-        binding.progressBar.setVisibility(View.GONE);
         
         // Check network connectivity before connecting to MQTT
         if (checkNetworkConnectivity()) {
@@ -100,8 +109,10 @@ public class MainActivity extends AppCompatActivity {
             
             // Set initial status text
             statusTextView.setText("Ready. Waiting for MQTT commands...");
+            statusTextView.setVisibility(View.VISIBLE);
         } else {
             statusTextView.setText("Network unavailable. Cannot connect to MQTT broker.");
+            statusTextView.setVisibility(View.VISIBLE);
             showToast("Network unavailable. MQTT connection not possible.");
         }
     }
@@ -135,7 +146,7 @@ public class MainActivity extends AppCompatActivity {
             
             // Create MQTT client instance with MemoryPersistence to avoid file-based persistence issues
             // Using MemoryPersistence instead of null helps prevent permission issues on real devices
-            mqttClient = new MqttAsyncClient(MQTT_BROKER_URL, clientId, new org.eclipse.paho.client.mqttv3.persist.MemoryPersistence());
+            mqttClient = new MqttAsyncClient(MQTT_BROKER_URL, clientId, new MemoryPersistence());
 
             // Configure connection options
             MqttConnectOptions options = new MqttConnectOptions();
@@ -150,12 +161,24 @@ public class MainActivity extends AppCompatActivity {
                     // Connection successful, subscribe to the topic
                     Log.d(TAG, "Connected to MQTT Broker");
                     subscribeToTopic();
+                    
+                    // Update the status UI on the main thread
+                    runOnUiThread(() -> {
+                        statusTextView.setText("Connected to MQTT Broker");
+                        statusTextView.setBackgroundColor(getResources().getColor(R.color.connected_green, null));
+                    });
                 }
 
                 @Override
                 public void onFailure(IMqttToken asyncActionToken, Throwable exception) {
                     // Connection failed, log the error
                     Log.e(TAG, "Failed to connect", exception);
+                    
+                    // Update the status UI on the main thread
+                    runOnUiThread(() -> {
+                        statusTextView.setText("Failed to connect to MQTT Broker");
+                        statusTextView.setBackgroundColor(getResources().getColor(R.color.disconnected_red, null));
+                    });
                 }
             });
 
@@ -165,6 +188,12 @@ public class MainActivity extends AppCompatActivity {
                 public void connectionLost(Throwable cause) {
                     // Connection to the broker was lost
                     Log.e(TAG, "Connection lost", cause);
+                    
+                    // Update the status UI on the main thread
+                    runOnUiThread(() -> {
+                        statusTextView.setText("Connection to MQTT Broker lost");
+                        statusTextView.setBackgroundColor(getResources().getColor(R.color.disconnected_red, null));
+                    });
                 }
 
                 @Override
@@ -185,17 +214,59 @@ public class MainActivity extends AppCompatActivity {
                             
                             // Validate that the k-value is one of the acceptable values
                             if (isValidKValue(kValue)) {
-                                // Update UI and start anonymization on UI thread
+                                // Update UI to show the message was received
                                 runOnUiThread(() -> {
-                                    statusTextView.setText("Starting anonymization with K = " + kValue);
-                                    // Start anonymization with the extracted k-value
-                                    onAnonymizeButtonClick(null, kValue);
+                                    statusTextView.setText("Received command: K Value = " + kValue);
+                                    showToast("Received MQTT command: K Value = " + kValue);
+                                    
+                                    // Navigate to the anonymization fragment first
+                                    if (navController != null) {
+                                        navController.navigate(R.id.anonymizationFragment);
+                                        
+                                        // Use a longer delay to ensure the fragment is created and available
+                                        // before we attempt to interact with it
+                                        new Handler().postDelayed(() -> {
+                                            try {
+                                                // Try to find the current fragment from the NavHostFragment
+                                                NavHostFragment navHostFragment = (NavHostFragment) getSupportFragmentManager()
+                                                    .findFragmentById(R.id.nav_host_fragment);
+                                                if (navHostFragment != null) {
+                                                    Fragment currentFragment = navHostFragment.getChildFragmentManager()
+                                                        .getFragments().get(0);
+                                                    
+                                                    if (currentFragment instanceof AnonymizationFragment) {
+                                                        AnonymizationFragment fragment = (AnonymizationFragment) currentFragment;
+                                                        // Start anonymization with the k-value
+                                                        fragment.startAnonymization(kValue);
+                                                        Log.d(TAG, "Started anonymization directly with k=" + kValue);
+                                                    } else {
+                                                        Log.e(TAG, "Current fragment is not AnonymizationFragment: " + 
+                                                            (currentFragment != null ? currentFragment.getClass().getSimpleName() : "null"));
+                                                        // Try with fragment result as fallback
+                                                        Bundle result = new Bundle();
+                                                        result.putInt("k_value", kValue);
+                                                        getSupportFragmentManager().setFragmentResult("anonymize_request", result);
+                                                    }
+                                                } else {
+                                                    Log.e(TAG, "NavHostFragment is null");
+                                                }
+                                            } catch (Exception e) {
+                                                Log.e(TAG, "Error getting AnonymizationFragment", e);
+                                                // Try with fragment result as fallback
+                                                Bundle result = new Bundle();
+                                                result.putInt("k_value", kValue);
+                                                getSupportFragmentManager().setFragmentResult("anonymize_request", result);
+                                            }
+                                        }, 1500); // Use a longer delay to ensure fragment is ready
+                                    } else {
+                                        Log.e(TAG, "NavController is null");
+                                    }
                                 });
                             } else {
                                 // Invalid k-value received
                                 Log.e(TAG, "Invalid k-value received: " + kValue);
                                 runOnUiThread(() -> {
-                                    statusTextView.setText("Invalid K value: " + kValue + ". Must be one of: 2, 5, 10, 30, 50, 500");
+                                    statusTextView.setText("Invalid K value: " + kValue);
                                     showHeadsUpMessage("Invalid K Value", 
                                             "Received K = " + kValue + ", but only values 2, 5, 10, 30, 50, and 500 are allowed.");
                                 });
@@ -246,43 +317,6 @@ public class MainActivity extends AppCompatActivity {
     }
     
     /**
-     * Checks if the device has network connectivity.
-     * This helps prevent attempting MQTT connections when no network is available.
-     * 
-     * @return true if network is available, false otherwise
-     */
-    private boolean checkNetworkConnectivity() {
-        ConnectivityManager connectivityManager = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
-        
-        if (connectivityManager != null) {
-            NetworkInfo activeNetworkInfo = connectivityManager.getActiveNetworkInfo();
-            boolean isConnected = activeNetworkInfo != null && activeNetworkInfo.isConnected();
-            
-            Log.d(TAG, "Network connectivity: " + (isConnected ? "Available" : "Not available"));
-            Log.d(TAG, "Network type: " + (activeNetworkInfo != null ? activeNetworkInfo.getTypeName() : "None"));
-            
-            if (isConnected) {
-                // Perform additional MQTT connection diagnostics
-                MqttHelper.logConnectionDiagnostics(this, MQTT_BROKER_URL);
-            }
-            
-            return isConnected;
-        }
-        
-        Log.e(TAG, "ConnectivityManager is null");
-        return false;
-    }
-
-    /**
-     * Displays a toast message to the user.
-     * 
-     * @param message The message to display
-     */
-    private void showToast(String message) {
-        Toast.makeText(getApplicationContext(), message, Toast.LENGTH_LONG).show();
-    }
-    
-    /**
      * Checks if the provided k-value is valid (one of the pre-defined values).
      * 
      * @param kValue The k-value to validate
@@ -305,7 +339,7 @@ public class MainActivity extends AppCompatActivity {
      * @param message The message to display
      */
     private void showHeadsUpMessage(String title, String message) {
-        new androidx.appcompat.app.AlertDialog.Builder(this)
+        new AlertDialog.Builder(this)
             .setTitle(title)
             .setMessage(message)
             .setPositiveButton("OK", null)
@@ -317,231 +351,88 @@ public class MainActivity extends AppCompatActivity {
     }
 
     /**
-     * Handler for the "Read CSV" button click.
-     * Starts an AsyncTask to read the CSV file in the background.
+     * Checks if the device has network connectivity.
+     * This helps prevent attempting MQTT connections when no network is available.
      * 
-     * @param view The button that was clicked
+     * @return true if network is available, false otherwise
      */
-    public void readButtonPythonRun(View view) {
-        new ReadCsvTask(this).execute();
-    }
-
-    /**
-     * Starts the anonymization process with the specified k-value.
-     * This method is called by the UI buttons and MQTT handler.
-     * 
-     * @param view The button that was clicked (can be null when called from MQTT)
-     * @param kValue The k-value to use for anonymization
-     */
-    public void onAnonymizeButtonClick(View view, int kValue) {
-        new AnonymizeTask(this, kValue).execute();
-    }
-
-    /**
-     * Handler for the K=2 button click.
-     * Delegates to onAnonymizeButtonClick with k=2.
-     * 
-     * @param view The button that was clicked
-     */
-    public void onAnonymizeButtonClick_k2(View view) {
-        onAnonymizeButtonClick(view, 2);
-    }
-
-    /**
-     * Handler for the K=5 button click.
-     * Delegates to onAnonymizeButtonClick with k=5.
-     * 
-     * @param view The button that was clicked
-     */
-    public void onAnonymizeButtonClick_k5(View view) {
-        onAnonymizeButtonClick(view, 5);
-    }
-
-    /**
-     * Handler for the K=10 button click.
-     * Delegates to onAnonymizeButtonClick with k=10.
-     * 
-     * @param view The button that was clicked
-     */
-    public void onAnonymizeButtonClick_k10(View view) {
-        onAnonymizeButtonClick(view, 10);
-    }
-
-    /**
-     * Handler for the K=30 button click.
-     * Delegates to onAnonymizeButtonClick with k=30.
-     * 
-     * @param view The button that was clicked
-     */
-    public void onAnonymizeButtonClick_k30(View view) {
-        onAnonymizeButtonClick(view, 30);
-    }
-
-    /**
-     * Handler for the K=50 button click.
-     * Delegates to onAnonymizeButtonClick with k=50.
-     * 
-     * @param view The button that was clicked
-     */
-    public void onAnonymizeButtonClick_k50(View view) {
-        onAnonymizeButtonClick(view, 50);
-    }
-
-    /**
-     * Handler for the K=500 button click.
-     * Delegates to onAnonymizeButtonClick with k=500.
-     * 
-     * @param view The button that was clicked
-     */
-    public void onAnonymizeButtonClick_k500(View view) {
-        onAnonymizeButtonClick(view, 500);
-    }
-
-    /**
-     * AsyncTask for reading CSV files in the background.
-     * 
-     * AsyncTask is a helper class that allows performing background operations
-     * and publishing results on the UI thread without having to manipulate threads.
-     * 
-     * Note: AsyncTask is deprecated in API level 30, but still works for this application.
-     * In newer code, WorkManager or Kotlin coroutines would be preferred.
-     */
-    private static class ReadCsvTask extends AsyncTask<Void, Void, String> {
-        private WeakReference<MainActivity> activityReference;
-
-        /**
-         * Constructor that takes a reference to the MainActivity.
-         * Uses WeakReference to prevent memory leaks.
-         * 
-         * @param context The MainActivity instance
-         */
-        ReadCsvTask(MainActivity context) {
-            activityReference = new WeakReference<>(context);
-        }
-
-        /**
-         * Performs work in a background thread.
-         * Calls the Python module to read the CSV file.
-         */
-        @Override
-        protected String doInBackground(Void... voids) {
-            MainActivity activity = activityReference.get();
-            if (activity == null || activity.isFinishing()) return null;
-
-            try (PyObject pyObjectResult = activity.inputReaderModule.callAttr("get_csvfile", "dataset.csv")) {
-                return pyObjectResult.toString();
-            } catch (Exception e) {
-                Log.e(TAG_MAIN, "Error reading CSV file", e);
-                return null;
-            }
-        }
-
-        /**
-         * Executes on the UI thread after doInBackground completes.
-         * Updates the UI with the CSV data or error message.
-         * 
-         * @param result The result returned from doInBackground
-         */
-        @Override
-        protected void onPostExecute(String result) {
-            MainActivity activity = activityReference.get();
-            if (activity == null || activity.isFinishing()) return;
-
-            if (result != null) {
-                activity.binding.textViewOutput.setText(result);
-            } else {
-                activity.binding.textViewOutput.setText(activity.getString(R.string.error_message, "Failed to read CSV"));
-            }
-        }
-    }
-
-    /**
-     * AsyncTask for performing anonymization in the background.
-     * 
-     * This task calls the Python anonymization module and handles progress indication
-     * and result display.
-     */
-    private static class AnonymizeTask extends AsyncTask<Void, Void, String> {
-        private WeakReference<MainActivity> activityReference;
-        private int kValue;
-        private String buttonTag;
-
-        /**
-         * Constructor that takes a reference to the MainActivity and k-value.
-         * 
-         * @param context The MainActivity instance
-         * @param kValue The k-value to use for anonymization
-         */
-        AnonymizeTask(MainActivity context, int kValue) {
-            activityReference = new WeakReference<>(context);
-            this.kValue = kValue;
-            this.buttonTag = "k" + kValue;
-        }
-
-        /**
-         * Executes on the UI thread before doInBackground.
-         * Shows the progress bar and displays a message.
-         */
-        @Override
-        protected void onPreExecute() {
-            MainActivity activity = activityReference.get();
-            if (activity == null || activity.isFinishing()) return;
-
-            // Show the progress indicator
-            activity.binding.progressBar.setVisibility(View.VISIBLE);
-
-            // Estimate how long the process will take based on k-value
-            int durationEstimate = 70 / kValue;
+    private boolean checkNetworkConnectivity() {
+        ConnectivityManager connectivityManager = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
+        
+        if (connectivityManager != null) {
+            NetworkInfo activeNetworkInfo = connectivityManager.getActiveNetworkInfo();
+            boolean isConnected = activeNetworkInfo != null && activeNetworkInfo.isConnected();
             
-            // Create and show a detailed message about the process
-            StringBuilder message = new StringBuilder()
-                    .append("Anonymization button (K=").append(kValue).append(") clicked!\n")
-                    .append("Processing in the backend. Please wait for a short moment\n")
-                    .append("It might take ").append(durationEstimate).append("-").append(durationEstimate + 10).append(" seconds\n")
-                    .append("Once the anonymization is completed, the result will be shown above");
-            activity.showToast(message.toString());
+            Log.d(TAG, "Network connectivity: " + (isConnected ? "Available" : "Not available"));
+            Log.d(TAG, "Network type: " + (activeNetworkInfo != null ? activeNetworkInfo.getTypeName() : "None"));
+            
+            return isConnected;
         }
+        
+        Log.e(TAG, "ConnectivityManager is null");
+        return false;
+    }
 
-        /**
-         * Performs work in a background thread.
-         * Calls the Python anonymization module.
-         */
-        @Override
-        protected String doInBackground(Void... voids) {
-            MainActivity activity = activityReference.get();
-            if (activity == null || activity.isFinishing()) return null;
+    /**
+     * Displays a toast message to the user.
+     * 
+     * @param message The message to display
+     */
+    private void showToast(String message) {
+        Toast.makeText(getApplicationContext(), message, Toast.LENGTH_LONG).show();
+    }
 
-            try (PyObject pyObjectAnonymizedDataResult = activity.mondrianModule.callAttr("anonymize_execute", kValue)) {
-                return pyObjectAnonymizedDataResult.toString();
-            } catch (Exception e) {
-                Log.e(TAG_MAIN, "Error during anonymization", e);
-                return null;
-            }
-        }
+    /**
+     * Get the MQTT client for other components to check connection status
+     * @return The MQTT client instance
+     */
+    public IMqttAsyncClient getMqttClient() {
+        return mqttClient;
+    }
 
-        /**
-         * Executes on the UI thread after doInBackground completes.
-         * Updates the UI with the anonymization result or error message.
-         * 
-         * @param result The result returned from doInBackground
-         */
-        @Override
-        protected void onPostExecute(String result) {
-            MainActivity activity = activityReference.get();
-            if (activity == null || activity.isFinishing()) return;
+    /**
+     * Get the MQTT broker URL for display in settings
+     * @return The MQTT broker URL
+     */
+    public String getMqttBrokerUrl() {
+        return MQTT_BROKER_URL;
+    }
 
-            // Hide the progress indicator
-            activity.binding.progressBar.setVisibility(View.GONE);
+    /**
+     * Get the Python instance for fragments to use
+     * @return The Python instance
+     */
+    public Python getPythonInstance() {
+        return py;
+    }
 
-            if (result != null) {
-                // Anonymization completed successfully
-                Log.d(TAG_MAIN, "MainActivity: Anonymization successfully completed");
-                activity.showToast("Anonymization is completed!");
-                activity.binding.textViewOutput.setText(result);
-            } else {
-                // Anonymization failed
-                activity.binding.textViewOutput.setText(activity.getString(R.string.error_message, "Anonymization failed"));
-                activity.showToast("Anonymization failed");
+    /**
+     * Get the input reader module for fragments
+     * @return The input reader module
+     */
+    public PyObject getInputReaderModule() {
+        return inputReaderModule;
+    }
+
+    /**
+     * Get the mondrian module for fragments
+     * @return The mondrian module
+     */
+    public PyObject getMondrianModule() {
+        return mondrianModule;
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        
+        // Disconnect from the MQTT broker if connected
+        if (mqttClient != null && mqttClient.isConnected()) {
+            try {
+                mqttClient.disconnect();
+                Log.d(TAG, "Disconnected from MQTT broker");
+            } catch (MqttException e) {
+                Log.e(TAG, "Error disconnecting from MQTT broker", e);
             }
         }
     }
