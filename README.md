@@ -1,91 +1,121 @@
-# Anonymization in Python (Mondrian Method)
+# PythonCalculation: Mobile Data Anonymization Using Mondrian Method
 
-## Project Overview
-Mobile Anonymization with mondrian method
-  - Implementing anonymization in mobile environement and examining the impact on the mobile device (battery/CPU/RAM consumption).
-  - Final goal is to achieve the good balacance between data privacy and data utiliy to feed to machine learning model.
+## 📋 Project Overview
+This Android application demonstrates data anonymization in a mobile environment using the Mondrian method implemented in Python. The project focuses on:
+- Implementing data anonymization algorithms that can run directly on mobile devices
+- Evaluating the impact on mobile resources (battery/CPU/RAM consumption)
+- Achieving an optimal balance between data privacy and utility for machine learning models
 
-## Features
-Building an android app that 
-  - Reads a csv file and display a part of the content
-  - Anonymizes the input and the result is stored inside the app.
-  - The used algorithm is Mondrian method and written in python.
-  - The algorithm is called inside MainActiviy.java, hence Java.
-  - Examination of the hardware impact is not yet measured. (requires external app)
+## ✨ Features
+- **CSV Data Processing**: Reads CSV files and displays content within the app
+- **Mondrian Anonymization**: Implements the Mondrian algorithm in Python to anonymize sensitive data
+- **Cross-Language Integration**: Seamlessly executes Python code from Java using Chaquopy
+- **Local Processing**: All anonymization happens on-device, enhancing privacy
+- **Data Visualization**: Displays both original and anonymized data for comparison
 
-## Reuqirments 
-The detail is documented in `requirments.txt`. 
-  -  Android Studio Ladybug | 2024.2.1 Patch 3
-  -  Compiled API Level: 34
-  -  com.chaquo.python: version 16.0.0 
-  -  Python 3.8
-  -  JavaVersion.VERSION 11
-  -  Gradle version 8.9
-  -  ABI filders arm64-v8a, x86_64
+## 🛠️ Technical Requirements
+### Development Environment
+- Android Studio Ladybug | 2024.2.1 Patch 3
+- Gradle version 8.9
+- JDK: JavaVersion.VERSION 11
 
-## Getting Started / Installation 
-1. CLine the repo:
+### Android Configuration
+- Compiled API Level: 34
+- Minimum SDK: 31
+- Target SDK: 31
+- ABI filters: arm64-v8a, x86_64
+
+### Python Environment
+- Python 3.8 via Chaquopy (com.chaquo.python version 16.0.0)
+- Dependencies:
+  - NumPy
+  - Pandas
+  - Built-in libraries: os, glob, base64
+  - Custom package: algorithm.hierarchy_tree
+
+## 🚀 Getting Started
+
+### Installation
+1. Clone the repository:
+   ```
+   git clone https://github.com/HayateSato/AnonymizeMondrian_Python.git
+   ```
+2. Open the project in Android Studio
+3. Sync Gradle and build the project
+4. Run on an emulator or physical device with Android 12 (API 31) or higher
+
+### Setting Up Python in Android
+
+1. Add Chaquopy plugin to your project-level build.gradle:
+   ```gradle
+   plugins {
+       // Your existing plugins
+       id("com.chaquo.python") version "16.0.0" apply false
+   }
+   ```
+
+2. Configure the app-level build.gradle:
+   ```gradle
+   plugins {
+       // Your existing plugins
+       id("com.chaquo.python")
+   }
+   
+   android {
+       defaultConfig {
+           // Your existing config
+           minSdk = 31
+           // Other configurations
+           
+           python {
+               // Python configuration options
+           }
+       }
+   }
+   ```
+
+3. Configure Python dependencies in your app-level build.gradle:
+   ```gradle
+   python {
+       pip {
+           install "numpy"
+           install "pandas"
+           // Other Python dependencies
+       }
+   }
+   ```
+
+## 📁 Project Structure
 ```
-https://github.com/HayateSato/AnonymizeMondrian_Python.git
-```
-2. Navigate to project direcoty in your local machine:
-```   
- cd AnonymizeMondrian_Python
-```
-3. 
-
-## Getting Python running inside Android 
-helpful instructions. 
-- https://chaquo.com/chaquopy/doc/current/android.html
-- https://www.youtube.com/watch?v=QFEu1KGHnzU
-
-1. Open Project level build.gradle
-```
-plugins {
-    --- below your existing code ---
-    id("com.chaquo.python") version "16.0.0" apply false
-}
-```
- 
-2. Open App level build.grandle (Plugins)
-```
-plugins {
-    --- below your existing code ---
-    id("com.chaquo.python")
-}
+app/
+├── src/
+│   ├── main/
+│   │   ├── java/           # Java source code
+│   │   │   └── MainActivity.java  # Entry point calling Python code
+│   │   ├── python/         # Python source code
+│   │   │   └── mondrian/   # Mondrian algorithm implementation
+│   │   ├── assets/         # CSV data files
+│   │   └── res/            # Android resources
+└── build.gradle.kts        # App-level build configuration
 ```
 
-3. Stay in App level build.grandle (minSdk)
-```
-    defaultConfig {
-    --- below your existing code ---
-        minSdk = 31   <--- this number needs to be higher than 24
-        targetSdk = 31
-        versionCode = 1
-    --- avbove your existing code ---
-}
-```
+## 📚 Resources
+For more information on integrating Python with Android:
+- [Chaquopy Documentation](https://chaquo.com/chaquopy/doc/current/android.html)
+- [Python on Android Tutorial](https://www.youtube.com/watch?v=QFEu1KGHnzU)
 
+## 🔜 Future Enhancements
+- Hardware impact measurement using external monitoring tools
+- Additional anonymization algorithms for comparison
+- Performance optimizations for large datasets
+- UI/UX improvements for better data visualization
 
+[//]: # (## 📄 License)
 
-## Project Stucture
+[//]: # ([Your license information here])
 
-![image](https://github.com/user-attachments/assets/01724f82-7fa4-4ad0-b865-ad37a77c775f)
+## 👤 Authors
+- Hayate Sato
 
-
-
-
-
-
-
-## Setting-up Python Environment 
-
-
-
-
-Since algorithm is written in Python, we need to set up an environment where we can run Python inside an Android Phone. TO do so, following 
-- Setting-Up Python Environemnt 
-- plugins {
-    alias(libs.plugins.android.application) apply false
-    id("com.chaquo.python") version "16.0.0" apply false
-}
+---
+*Last Updated: May 2025*
