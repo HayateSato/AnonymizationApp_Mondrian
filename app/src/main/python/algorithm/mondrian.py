@@ -143,8 +143,8 @@ def generate_key(password):
     key = base64.urlsafe_b64encode(kdf.derive(password))
     return key
 
-def encrypt_value(value, fernet):
-    return fernet.encrypt(str(value).encode()).decode()
+# def encrypt_value(value, fernet):
+#     return fernet.encrypt(str(value).encode()).decode()
 
 def decrypt_value(value, fernet):
     return fernet.decrypt(value.encode()).decode()
@@ -163,7 +163,8 @@ def run_anonymize(qi_list, identifiers, data_file, hierarchy_file_dir, k=5, pass
         fernet = Fernet(key)
         for identifier in identifiers:
             if identifier in df.columns:
-                df[identifier] = df[identifier].apply(lambda x: encrypt_value(x, fernet))
+                df[identifier] = df[identifier].apply(lambda x: x)
+                # df[identifier] = df[identifier].apply(lambda x: encrypt_value(x, fernet))
 
     hierarchy_tree_dict = h_tree.build_all_hierarchy_tree(hierarchy_file_dir)
     print(f"hirerarchy_tree_dict: {hierarchy_tree_dict})")
