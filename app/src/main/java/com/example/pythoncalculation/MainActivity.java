@@ -49,6 +49,12 @@ public class MainActivity extends AppCompatActivity {
     // Consider using SSL if available: "ssl://172.23.219.123:8883"
     private static final String MQTT_TOPIC = "anonymization/commands"; // Topic to listen for commands
 
+    /**
+     * List of valid K values for anonymization.
+     * Only these values are accepted when processing MQTT commands.
+     */
+    private static final int[] VALID_K_VALUES = {2, 5, 10, 30, 50, 500};
+    
     // Logging tag for non-MQTT related logs
     private static final String TAG_MAIN = "MainActivity";
     
@@ -176,26 +182,39 @@ public class MainActivity extends AppCompatActivity {
                             
                             // Log the extracted k-value
                             Log.d(TAG, "Extracted k-value: " + kValue);
-                                    
-                            // Update UI and start anonymization on UI thread
-                            runOnUiThread(() -> {
-                                statusTextView.setText("Starting anonymization with K = " + kValue);
-                                // Start anonymization with the extracted k-value
-                                onAnonymizeButtonClick(null, kValue);
-                            });
+                            
+                            // Validate that the k-value is one of the acceptable values
+                            if (isValidKValue(kValue)) {
+                                // Update UI and start anonymization on UI thread
+                                runOnUiThread(() -> {
+                                    statusTextView.setText("Starting anonymization with K = " + kValue);
+                                    // Start anonymization with the extracted k-value
+                                    onAnonymizeButtonClick(null, kValue);
+                                });
+                            } else {
+                                // Invalid k-value received
+                                Log.e(TAG, "Invalid k-value received: " + kValue);
+                                runOnUiThread(() -> {
+                                    statusTextView.setText("Invalid K value: " + kValue + ". Must be one of: 2, 5, 10, 30, 50, 500");
+                                    showHeadsUpMessage("Invalid K Value", 
+                                            "Received K = " + kValue + ", but only values 2, 5, 10, 30, 50, and 500 are allowed.");
+                                });
+                            }
                         } catch (NumberFormatException e) {
                             // Failed to parse the k-value
                             Log.e(TAG, "Invalid k-value format", e);
                             runOnUiThread(() -> {
                                 statusTextView.setText("Invalid k-value format: " + payload);
-                                showToast("Invalid k-value format");
+                                showHeadsUpMessage("Invalid Format", 
+                                        "The received message has an invalid format. Expected 'K Value = X' where X is a number.");
                             });
                         }
                     } else {
                         // Message format not recognized
                         runOnUiThread(() -> {
                             statusTextView.setText("Unknown command: " + payload);
-                            showToast("Unknown command. Expected format: 'K Value = X'");
+                            showHeadsUpMessage("Unknown Command", 
+                                    "Expected format: 'K Value = X' where X is one of: 2, 5, 10, 30, 50, 500");
                         });
                     }
                 }
@@ -261,6 +280,40 @@ public class MainActivity extends AppCompatActivity {
      */
     private void showToast(String message) {
         Toast.makeText(getApplicationContext(), message, Toast.LENGTH_LONG).show();
+    }
+    
+    /**
+     * Checks if the provided k-value is valid (one of the pre-defined values).
+     * 
+     * @param kValue The k-value to validate
+     * @return true if the k-value is valid, false otherwise
+     */
+    private boolean isValidKValue(int kValue) {
+        for (int validValue : VALID_K_VALUES) {
+            if (kValue == validValue) {
+                return true;
+            }
+        }
+        return false;
+    }
+    
+    /**
+     * Shows a more prominent heads-up message as an AlertDialog.
+     * This is used for important notifications like invalid K values.
+     * 
+     * @param title The dialog title
+     * @param message The message to display
+     */
+    private void showHeadsUpMessage(String title, String message) {
+        new androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle(title)
+            .setMessage(message)
+            .setPositiveButton("OK", null)
+            .setIcon(android.R.drawable.ic_dialog_alert)
+            .show();
+        
+        // Also show a toast for additional notification
+        showToast(title + ": " + message);
     }
 
     /**
