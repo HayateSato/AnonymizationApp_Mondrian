@@ -67,9 +67,14 @@ public class AnonymizationFragment extends Fragment {
             (requestKey, result) -> {
                 if (result.containsKey("k_value")) {
                     int kValue = result.getInt("k_value");
+                    Log.d(TAG, "Received fragment result with k_value = " + kValue);
+                    Toast.makeText(getContext(), "Starting anonymization with K = " + kValue, Toast.LENGTH_SHORT).show();
                     startAnonymization(kValue);
                 }
             });
+        
+        // Log that the fragment is ready
+        Log.d(TAG, "AnonymizationFragment is now ready");
     }
 
     private void setupAnonymizationButtons() {
@@ -81,7 +86,7 @@ public class AnonymizationFragment extends Fragment {
         binding.anonymizeButtonK500.setOnClickListener(v -> startAnonymization(500));
     }
 
-    private void startAnonymization(int kValue) {
+    public void startAnonymization(int kValue) {
         // Show progress bar
         binding.progressBar.setVisibility(View.VISIBLE);
         

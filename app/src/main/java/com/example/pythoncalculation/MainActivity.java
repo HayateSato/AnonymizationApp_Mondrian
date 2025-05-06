@@ -4,12 +4,14 @@ import android.content.Context;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.os.Bundle;
+import android.os.Handler;
 import android.util.Log;
 import android.view.View;
 import android.widget.TextView;
 import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.app.AlertDialog;
+import androidx.fragment.app.Fragment;
 import androidx.navigation.NavController;
 import androidx.navigation.fragment.NavHostFragment;
 
@@ -17,6 +19,7 @@ import com.chaquo.python.android.AndroidPlatform;
 import com.chaquo.python.PyObject;
 import com.chaquo.python.Python;
 import com.example.pythoncalculation.databinding.ActivityMainBinding;
+import com.example.pythoncalculation.fragments.AnonymizationFragment;
 
 import org.eclipse.paho.client.mqttv3.IMqttActionListener;
 import org.eclipse.paho.client.mqttv3.IMqttAsyncClient;
@@ -214,21 +217,50 @@ public class MainActivity extends AppCompatActivity {
                                 // Update UI to show the message was received
                                 runOnUiThread(() -> {
                                     statusTextView.setText("Received command: K Value = " + kValue);
+                                    showToast("Received MQTT command: K Value = " + kValue);
                                     
-                                    // Navigate to the anonymization fragment
-                                    if (navController != null && 
-                                        navController.getCurrentDestination().getId() != R.id.anonymizationFragment) {
+                                    // Navigate to the anonymization fragment first
+                                    if (navController != null) {
                                         navController.navigate(R.id.anonymizationFragment);
+                                        
+                                        // Use a longer delay to ensure the fragment is created and available
+                                        // before we attempt to interact with it
+                                        new Handler().postDelayed(() -> {
+                                            try {
+                                                // Try to find the current fragment from the NavHostFragment
+                                                NavHostFragment navHostFragment = (NavHostFragment) getSupportFragmentManager()
+                                                    .findFragmentById(R.id.nav_host_fragment);
+                                                if (navHostFragment != null) {
+                                                    Fragment currentFragment = navHostFragment.getChildFragmentManager()
+                                                        .getFragments().get(0);
+                                                    
+                                                    if (currentFragment instanceof AnonymizationFragment) {
+                                                        AnonymizationFragment fragment = (AnonymizationFragment) currentFragment;
+                                                        // Start anonymization with the k-value
+                                                        fragment.startAnonymization(kValue);
+                                                        Log.d(TAG, "Started anonymization directly with k=" + kValue);
+                                                    } else {
+                                                        Log.e(TAG, "Current fragment is not AnonymizationFragment: " + 
+                                                            (currentFragment != null ? currentFragment.getClass().getSimpleName() : "null"));
+                                                        // Try with fragment result as fallback
+                                                        Bundle result = new Bundle();
+                                                        result.putInt("k_value", kValue);
+                                                        getSupportFragmentManager().setFragmentResult("anonymize_request", result);
+                                                    }
+                                                } else {
+                                                    Log.e(TAG, "NavHostFragment is null");
+                                                }
+                                            } catch (Exception e) {
+                                                Log.e(TAG, "Error getting AnonymizationFragment", e);
+                                                // Try with fragment result as fallback
+                                                Bundle result = new Bundle();
+                                                result.putInt("k_value", kValue);
+                                                getSupportFragmentManager().setFragmentResult("anonymize_request", result);
+                                            }
+                                        }, 1500); // Use a longer delay to ensure fragment is ready
+                                    } else {
+                                        Log.e(TAG, "NavController is null");
                                     }
-                                    
-                                    // Small delay to allow fragment to load
-                                    statusTextView.postDelayed(() -> {
-                                        // Find and call the anonymization method on the fragment
-                                        // This is handled through fragmentResultListener in the fragment
-                                        Bundle result = new Bundle();
-                                        result.putInt("k_value", kValue);
-                                        getSupportFragmentManager().setFragmentResult("anonymize_request", result);
-                                    }, 500);
                                 });
                             } else {
                                 // Invalid k-value received
