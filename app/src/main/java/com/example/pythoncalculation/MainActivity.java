@@ -51,17 +51,23 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_main);
-
-        statusTextView = findViewById(R.id.statusTextView);
-
-        connectToMqttBroker();
-
         binding = ActivityMainBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
-
+        
+        // Find the statusTextView from the binding
+        statusTextView = binding.statusTextView;
+        
+        // Initialize Python environment
         initializePython();
+        
+        // Hide progress bar initially
         binding.progressBar.setVisibility(View.GONE);
+        
+        // Connect to MQTT broker
+        connectToMqttBroker();
+        
+        // Display initial status
+        statusTextView.setText("Ready. Waiting for MQTT commands...");
     }
 
 
@@ -95,19 +101,40 @@ public class MainActivity extends AppCompatActivity {
 
                 @Override
                 public void messageArrived(String topic, MqttMessage message) throws Exception {
-                    String payload = new String(message.getPayload());
-                    Log.d(TAG, "Message arrived: " + payload);
+                String payload = new String(message.getPayload());
+                Log.d(TAG, "Message arrived: " + payload);
 
-                    runOnUiThread(() -> {
-                        if (payload.equalsIgnoreCase("generalization")) {
-                            statusTextView.setText("Now Generalization");
-                        } else if (payload.equalsIgnoreCase("suppression")) {
-                            statusTextView.setText("Now Suppression");
-                        } else {
-                            statusTextView.setText("Unknown command: " + payload);
-                        }
-                    });
-                }
+                // Check if message follows the format "K Value = X"
+                if (payload.startsWith("K Value =")) {
+                try {
+                    // Extract the k-value from the message
+                String kValueStr = payload.substring("K Value =".length()).trim();
+                    final int kValue = Integer.parseInt(kValueStr);
+                
+                    // Log the extracted k-value
+                        Log.d(TAG, "Extracted k-value: " + kValue);
+                            
+                // Update UI and start anonymization
+                runOnUiThread(() -> {
+                    statusTextView.setText("Starting anonymization with K = " + kValue);
+                    // Start anonymization with the extracted k-value
+                    onAnonymizeButtonClick(null, kValue);
+                });
+            } catch (NumberFormatException e) {
+                Log.e(TAG, "Invalid k-value format", e);
+                runOnUiThread(() -> {
+                    statusTextView.setText("Invalid k-value format: " + payload);
+                    showToast("Invalid k-value format");
+                });
+            }
+        } else {
+            // Handle unrecognized message format
+            runOnUiThread(() -> {
+                statusTextView.setText("Unknown command: " + payload);
+                showToast("Unknown command. Expected format: 'K Value = X'");
+            });
+        }
+    }
 
                 @Override
                 public void deliveryComplete(IMqttDeliveryToken token) {
@@ -188,7 +215,7 @@ public class MainActivity extends AppCompatActivity {
 
 
     private void showToast(String message) {
-        Toast.makeText(getApplicationContext(), message, Toast.LENGTH_SHORT).show();
+        Toast.makeText(getApplicationContext(), message, Toast.LENGTH_LONG).show();
     }
 
 // 000000000000000000000000000000000000000000000000000000000000000000000000000000000000

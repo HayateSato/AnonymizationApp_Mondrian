@@ -152,13 +152,18 @@
 
     <TextView
         android:id="@+id/statusTextView"
-        android:layout_width="wrap_content"
+        android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:layout_centerInParent="true"
-        android:text=" "
-        android:textSize="24sp"
-        tools:layout_editor_absoluteX="80dp"
-        tools:layout_editor_absoluteY="76dp" />
+        android:layout_marginTop="8dp"
+        android:gravity="center"
+        android:padding="8dp"
+        android:text="Ready for MQTT commands"
+        android:textColor="#3F51B5"
+        android:textSize="18sp"
+        android:textStyle="bold"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/csv_button" />
 
 
 </androidx.constraintlayout.widget.ConstraintLayout>
