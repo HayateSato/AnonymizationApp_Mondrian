@@ -73,6 +73,13 @@ dependencies {
     androidTestImplementation(libs.espresso.core)
 
     implementation ("org.eclipse.paho:org.eclipse.paho.client.mqttv3:1.2.5")
+    
+    // Navigation Component
+    implementation("androidx.navigation:navigation-fragment:2.7.7")
+    implementation("androidx.navigation:navigation-ui:2.7.7")
+    
+    // CardView
+    implementation("androidx.cardview:cardview:1.0.0")
 
 }
 

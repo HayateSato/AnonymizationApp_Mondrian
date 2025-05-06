@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<navigation xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/nav_graph"
+    app:startDestination="@id/homeFragment">
+
+    <fragment
+        android:id="@+id/homeFragment"
+        android:name="com.example.pythoncalculation.fragments.HomeFragment"
+        android:label="Home"
+        tools:layout="@layout/fragment_home">
+        <action
+            android:id="@+id/action_home_to_data"
+            app:destination="@id/dataFragment" />
+        <action
+            android:id="@+id/action_home_to_anonymization"
+            app:destination="@id/anonymizationFragment" />
+        <action
+            android:id="@+id/action_home_to_settings"
+            app:destination="@id/settingsFragment" />
+    </fragment>
+
+    <fragment
+        android:id="@+id/dataFragment"
+        android:name="com.example.pythoncalculation.fragments.DataFragment"
+        android:label="Check Your Data"
+        tools:layout="@layout/fragment_data">
+        <action
+            android:id="@+id/action_data_to_home"
+            app:destination="@id/homeFragment" />
+    </fragment>
+
+    <fragment
+        android:id="@+id/anonymizationFragment"
+        android:name="com.example.pythoncalculation.fragments.AnonymizationFragment"
+        android:label="Anonymization"
+        tools:layout="@layout/fragment_anonymization">
+        <action
+            android:id="@+id/action_anonymization_to_home"
+            app:destination="@id/homeFragment" />
+    </fragment>
+
+    <fragment
+        android:id="@+id/settingsFragment"
+        android:name="com.example.pythoncalculation.fragments.SettingsFragment"
+        android:label="Settings"
+        tools:layout="@layout/fragment_settings">
+        <action
+            android:id="@+id/action_settings_to_home"
+            app:destination="@id/homeFragment" />
+    </fragment>
+
+</navigation>
