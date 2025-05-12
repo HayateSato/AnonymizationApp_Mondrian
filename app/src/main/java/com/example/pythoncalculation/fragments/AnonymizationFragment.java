@@ -1,5 +1,7 @@
 package com.example.pythoncalculation.fragments;
 
+import android.content.Context;
+import android.content.SharedPreferences;
 import android.os.AsyncTask;
 import android.os.Bundle;
 import android.util.Log;
@@ -29,9 +31,15 @@ import java.lang.ref.WeakReference;
 public class AnonymizationFragment extends Fragment {
 
     private static final String TAG = "AnonymizationFragment";
+    private static final String PREF_NAME = "DataPreferences";
+    private static final String PREF_USE_WEARABLE = "use_wearable";
+    
     private FragmentAnonymizationBinding binding;
     private Python py;
     private PyObject mondrianModule;
+    private boolean useWearableDataset = false;
+    private String selectedDatasetFile = "dataset.csv";
+    private SharedPreferences sharedPreferences;
 
     private TextView resultLabel;
 
@@ -49,6 +57,11 @@ public class AnonymizationFragment extends Fragment {
         // Get Python instance and modules
         py = Python.getInstance();
         mondrianModule = py.getModule("algorithm.mondrian");
+        
+        // Get shared preferences
+        sharedPreferences = requireActivity().getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE);
+        useWearableDataset = sharedPreferences.getBoolean(PREF_USE_WEARABLE, false);
+        selectedDatasetFile = useWearableDataset ? "wearable_input_raw.csv" : "dataset.csv";
 
         // Set up navigation back to home
         NavController navController = Navigation.findNavController(view);
@@ -60,7 +73,7 @@ public class AnonymizationFragment extends Fragment {
         
         // Add a label to remind users that these are K values
         resultLabel = binding.resultLabel;
-        resultLabel.setText("Anonymization Result (K = ?):");
+        updateResultLabel();
         
         // Set up fragment result listener for MQTT commands
         getParentFragmentManager().setFragmentResultListener("anonymize_request", this,
@@ -73,8 +86,35 @@ public class AnonymizationFragment extends Fragment {
                 }
             });
         
+        // Listen for file selection changes from DataFragment
+        getParentFragmentManager().setFragmentResultListener("file_selected", this,
+            (requestKey, result) -> {
+                boolean newUseWearable = result.getBoolean("use_wearable");
+                String newSelectedFile = result.getString("selected_file");
+                
+                if (newUseWearable != useWearableDataset || 
+                    (newSelectedFile != null && !newSelectedFile.equals(selectedDatasetFile))) {
+                    
+                    useWearableDataset = newUseWearable;
+                    selectedDatasetFile = newSelectedFile != null ? newSelectedFile : "dataset.csv";
+                    
+                    updateResultLabel();
+                    
+                    Toast.makeText(
+                        getContext(), 
+                        "Using " + (useWearableDataset ? "wearable dataset" : "standard dataset") + " for anonymization", 
+                        Toast.LENGTH_SHORT
+                    ).show();
+                }
+            });
+        
         // Log that the fragment is ready
         Log.d(TAG, "AnonymizationFragment is now ready");
+    }
+    
+    private void updateResultLabel() {
+        String datasetType = useWearableDataset ? "Wearable" : "Standard";
+        resultLabel.setText("Anonymization Result (K = ?, Dataset: " + datasetType + "):");
     }
 
     private void setupAnonymizationButtons() {
@@ -90,14 +130,15 @@ public class AnonymizationFragment extends Fragment {
         // Show progress bar
         binding.progressBar.setVisibility(View.VISIBLE);
         
-        // Update result label with selected K value
-        resultLabel.setText("Anonymization Result (K = " + kValue + "):");
+        // Update result label with selected K value and dataset type
+        String datasetType = useWearableDataset ? "Wearable" : "Standard";
+        resultLabel.setText("Anonymization Result (K = " + kValue + ", Dataset: " + datasetType + "):");
         
         // Disable buttons while processing
         setButtonsEnabled(false);
         
         // Execute the anonymization
-        new AnonymizeTask(this, kValue).execute();
+        new AnonymizeTask(this, kValue, selectedDatasetFile).execute();
     }
 
     private void setButtonsEnabled(boolean enabled) {
@@ -122,10 +163,12 @@ public class AnonymizationFragment extends Fragment {
     private static class AnonymizeTask extends AsyncTask<Void, Void, String> {
         private WeakReference<AnonymizationFragment> fragmentReference;
         private int kValue;
+        private String datasetFile;
 
-        AnonymizeTask(AnonymizationFragment fragment, int kValue) {
+        AnonymizeTask(AnonymizationFragment fragment, int kValue, String datasetFile) {
             fragmentReference = new WeakReference<>(fragment);
             this.kValue = kValue;
+            this.datasetFile = datasetFile;
         }
 
         @Override
@@ -133,10 +176,9 @@ public class AnonymizationFragment extends Fragment {
             AnonymizationFragment fragment = fragmentReference.get();
             if (fragment == null || fragment.getActivity() == null || fragment.isDetached()) return;
 
-            int durationEstimate = 70 / kValue;
             StringBuilder message = new StringBuilder()
-                    .append("Anonymization with K=").append(kValue).append(" started.\n");
-//                    .append("It might take ").append(durationEstimate + 5 ).append("-").append(durationEstimate + 15).append(" seconds.");
+                    .append("Anonymization with K=").append(kValue)
+                    .append(" started on ").append(datasetFile);
 
             Toast.makeText(fragment.getContext(), message.toString(), Toast.LENGTH_LONG).show();
         }
@@ -146,7 +188,7 @@ public class AnonymizationFragment extends Fragment {
             AnonymizationFragment fragment = fragmentReference.get();
             if (fragment == null || fragment.getActivity() == null || fragment.isDetached()) return null;
 
-            try (PyObject pyObjectAnonymizedDataResult = fragment.mondrianModule.callAttr("anonymize_execute", kValue)) {
+            try (PyObject pyObjectAnonymizedDataResult = fragment.mondrianModule.callAttr("anonymize_execute", kValue, datasetFile)) {
                 return pyObjectAnonymizedDataResult.toString();
             } catch (Exception e) {
                 Log.e(TAG, "Error during anonymization", e);
