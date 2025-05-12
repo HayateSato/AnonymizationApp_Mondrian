@@ -1,6 +1,7 @@
 package com.example.pythoncalculation;
 
 import android.content.Context;
+import android.content.SharedPreferences;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.os.Bundle;
@@ -47,9 +48,12 @@ public class MainActivity extends AppCompatActivity {
 
     // MQTT Configuration
     private static final String TAG = "MQTT";
-    private static final String MQTT_BROKER_URL = "tcp://192.168.8.126:1883"; // MQTT broker address
-    // Consider using SSL if available: "ssl://172.23.219.123:8883"
+    private static final String DEFAULT_MQTT_BROKER_URL = "tcp://192.168.8.126:1883"; // Default MQTT broker address
     private static final String MQTT_TOPIC = "anonymization/commands"; // Topic to listen for commands
+    
+    // SharedPreferences keys
+    private static final String PREF_NAME = "MqttPreferences";
+    private static final String PREF_BROKER_URL = "broker_url";
 
     /**
      * List of valid K values for anonymization.
@@ -66,6 +70,7 @@ public class MainActivity extends AppCompatActivity {
     
     // MQTT Client
     private IMqttAsyncClient mqttClient;
+    private String mqttBrokerUrl;
     
     // Python Components
     private Python py;
@@ -102,10 +107,13 @@ public class MainActivity extends AppCompatActivity {
         // Initialize Python environment for anonymization algorithm
         initializePython();
         
+        // Get saved MQTT broker URL
+        mqttBrokerUrl = getSavedBrokerUrl();
+            
         // Check network connectivity before connecting to MQTT
         if (checkNetworkConnectivity()) {
             // Connect to MQTT broker for remote command handling
-            connectToMqttBroker();
+            connectToMqttBroker(mqttBrokerUrl);
             
             // Set initial status text
             statusTextView.setText("Ready. Waiting for MQTT commands...");
@@ -138,15 +146,17 @@ public class MainActivity extends AppCompatActivity {
     /**
      * Establishes connection to the MQTT broker and sets up message handling.
      * Uses the Eclipse Paho MQTT client library.
+     * 
+     * @param brokerUrl The MQTT broker URL to connect to
      */
-    private void connectToMqttBroker() {
+    private void connectToMqttBroker(String brokerUrl) {
         try {
             // Generate a unique client ID for this connection
             String clientId = MqttAsyncClient.generateClientId();
             
             // Create MQTT client instance with MemoryPersistence to avoid file-based persistence issues
             // Using MemoryPersistence instead of null helps prevent permission issues on real devices
-            mqttClient = new MqttAsyncClient(MQTT_BROKER_URL, clientId, new MemoryPersistence());
+            mqttClient = new MqttAsyncClient(brokerUrl, clientId, new MemoryPersistence());
 
             // Configure connection options
             MqttConnectOptions options = new MqttConnectOptions();
@@ -395,7 +405,59 @@ public class MainActivity extends AppCompatActivity {
      * @return The MQTT broker URL
      */
     public String getMqttBrokerUrl() {
-        return MQTT_BROKER_URL;
+        return mqttBrokerUrl;
+    }
+    
+    /**
+     * Gets the saved MQTT broker URL from SharedPreferences or the default URL if none saved.
+     * 
+     * @return The broker URL to use
+     */
+    private String getSavedBrokerUrl() {
+        SharedPreferences prefs = getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE);
+        return prefs.getString(PREF_BROKER_URL, DEFAULT_MQTT_BROKER_URL);
+    }
+    
+    /**
+     * Reconnects the MQTT client with a new broker URL.
+     * Disconnects from the current broker if connected, then connects to the new one.
+     * 
+     * @param newBrokerUrl The new MQTT broker URL to connect to
+     */
+    public void reconnectMqttClient(String newBrokerUrl) {
+        // Save the new URL
+        SharedPreferences.Editor editor = getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE).edit();
+        editor.putString(PREF_BROKER_URL, newBrokerUrl);
+        editor.apply();
+        
+        // Update the broker URL
+        mqttBrokerUrl = newBrokerUrl;
+        
+        // Disconnect if currently connected
+        if (mqttClient != null && mqttClient.isConnected()) {
+            try {
+                mqttClient.disconnect();
+                Log.d(TAG, "Disconnected from previous MQTT broker");
+                showToast("Disconnected from previous MQTT broker");
+            } catch (MqttException e) {
+                Log.e(TAG, "Error disconnecting from MQTT broker", e);
+            }
+        }
+        
+        // Check network connectivity before connecting
+        if (checkNetworkConnectivity()) {
+            // Connect to the new broker
+            try {
+                connectToMqttBroker(newBrokerUrl);
+                Log.d(TAG, "Attempting to connect to new MQTT broker: " + newBrokerUrl);
+                showToast("Connecting to new MQTT broker: " + newBrokerUrl);
+            } catch (Exception e) {
+                Log.e(TAG, "Error connecting to new MQTT broker", e);
+                showToast("Error connecting to new MQTT broker: " + e.getMessage());
+            }
+        } else {
+            showToast("Network unavailable. Cannot connect to new MQTT broker.");
+        }
     }
 
     /**

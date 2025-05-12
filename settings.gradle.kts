@@ -19,6 +19,6 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "PythonCalculation"
+rootProject.name = "PythonCalculation_v2.0"
 include(":app")
  
