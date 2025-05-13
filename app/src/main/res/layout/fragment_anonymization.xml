@@ -33,19 +33,57 @@
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/anonymizationTitle" />
+        
+    <TextView
+        android:id="@+id/datasetSelectionLabel"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:text="Select Dataset:"
+        android:textColor="@color/black"
+        android:textSize="16sp"
+        android:textStyle="bold"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/anonymizationExplanation" />
+
+    <RadioGroup
+        android:id="@+id/datasetRadioGroup"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:orientation="horizontal"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/datasetSelectionLabel">
+
+        <RadioButton
+            android:id="@+id/standardDatasetRadio"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="16dp"
+            android:checked="true"
+            android:text="Standard Dataset"
+            android:textColor="@color/black" />
+
+        <RadioButton
+            android:id="@+id/wearableDatasetRadio"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Wearable Dataset"
+            android:textColor="@color/black" />
+    </RadioGroup>
 
     <TextView
         android:id="@+id/kValueLabel"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="24dp"
+        android:layout_marginTop="16dp"
         android:text="Select K Value:"
         android:textColor="@color/black"
         android:textSize="16sp"
         android:textStyle="bold"
-        app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/anonymizationExplanation" />
+        app:layout_constraintTop_toBottomOf="@+id/datasetRadioGroup" />
 
     <GridLayout
         android:id="@+id/buttonGridLayout"

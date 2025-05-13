@@ -8,6 +8,7 @@ import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.RadioButton;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -38,7 +39,9 @@ public class AnonymizationFragment extends Fragment {
     private Python py;
     private PyObject mondrianModule;
     private boolean useWearableDataset = false;
-    static private String selectedDatasetFile = "dataset.csv";
+    private String selectedDatasetFile = "dataset.csv";
+    private RadioButton standardDatasetRadio;
+    private RadioButton wearableDatasetRadio;
     private SharedPreferences sharedPreferences;
 
     private TextView resultLabel;
@@ -62,6 +65,17 @@ public class AnonymizationFragment extends Fragment {
         sharedPreferences = requireActivity().getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE);
         useWearableDataset = sharedPreferences.getBoolean(PREF_USE_WEARABLE, false);
         selectedDatasetFile = useWearableDataset ? "wearable_input_raw.csv" : "dataset.csv";
+
+        // Initialize radio buttons
+        standardDatasetRadio = binding.standardDatasetRadio;
+        wearableDatasetRadio = binding.wearableDatasetRadio;
+        
+        // Set initial radio button state based on preferences
+        standardDatasetRadio.setChecked(!useWearableDataset);
+        wearableDatasetRadio.setChecked(useWearableDataset);
+        
+        // Setup radio button listeners
+        setupRadioButtonListeners();
 
         // Set up navigation back to home
         NavController navController = Navigation.findNavController(view);
@@ -98,6 +112,10 @@ public class AnonymizationFragment extends Fragment {
                     useWearableDataset = newUseWearable;
                     selectedDatasetFile = newSelectedFile != null ? newSelectedFile : "dataset.csv";
                     
+                    // Update radio buttons to match
+                    standardDatasetRadio.setChecked(!useWearableDataset);
+                    wearableDatasetRadio.setChecked(useWearableDataset);
+                    
                     updateResultLabel();
                     
                     Toast.makeText(
@@ -110,6 +128,48 @@ public class AnonymizationFragment extends Fragment {
         
         // Log that the fragment is ready
         Log.d(TAG, "AnonymizationFragment is now ready");
+    }
+    
+    private void setupRadioButtonListeners() {
+        standardDatasetRadio.setOnClickListener(v -> {
+            if (standardDatasetRadio.isChecked()) {
+                useWearableDataset = false;
+                selectedDatasetFile = "dataset.csv";
+                
+                // Save preference
+                SharedPreferences.Editor editor = sharedPreferences.edit();
+                editor.putBoolean(PREF_USE_WEARABLE, false);
+                editor.apply();
+                
+                updateResultLabel();
+                
+                Toast.makeText(
+                    getContext(), 
+                    "Using standard dataset for anonymization", 
+                    Toast.LENGTH_SHORT
+                ).show();
+            }
+        });
+        
+        wearableDatasetRadio.setOnClickListener(v -> {
+            if (wearableDatasetRadio.isChecked()) {
+                useWearableDataset = true;
+                selectedDatasetFile = "wearable_input_raw.csv";
+                
+                // Save preference
+                SharedPreferences.Editor editor = sharedPreferences.edit();
+                editor.putBoolean(PREF_USE_WEARABLE, true);
+                editor.apply();
+                
+                updateResultLabel();
+                
+                Toast.makeText(
+                    getContext(), 
+                    "Using wearable dataset for anonymization", 
+                    Toast.LENGTH_SHORT
+                ).show();
+            }
+        });
     }
     
     private void updateResultLabel() {
@@ -149,6 +209,8 @@ public class AnonymizationFragment extends Fragment {
         binding.anonymizeButtonK50.setEnabled(enabled);
         binding.anonymizeButtonK500.setEnabled(enabled);
         binding.backButton.setEnabled(enabled);
+        standardDatasetRadio.setEnabled(enabled);
+        wearableDatasetRadio.setEnabled(enabled);
     }
 
     @Override

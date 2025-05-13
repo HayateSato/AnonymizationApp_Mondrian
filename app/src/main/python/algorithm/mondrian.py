@@ -5,7 +5,7 @@ import time
 
 # custom library
 import algorithm.hierarchy_tree as h_tree
-from algorithm.encryption import generate_fernet, encrypt_value
+# from algorithm.encryption import generate_fernet, encrypt_value     # Commenting out encryption imports
 
 def summarized(partition, dim, qi_list):
     """
@@ -131,12 +131,12 @@ def run_anonymize(qi_list, identifiers, data_file, hierarchy_file_dir, k=5):
     # suppose n records(num of rows). k-anonymity. m quasi-identifiers. Calculate time complexity
     df = pd.read_csv(data_file)
 
-    # key = generate_key(" ")
-    fernet = generate_fernet(" ")
+    # Commenting out encryption and using simple masking instead
+    # fernet = generate_fernet(" ")                                                                  # uncomment for encryption
     for identifier in identifiers:
         if identifier in df.columns:
-    #         df[identifier] = "****"               # uncomment this for simple suppression
-            df[identifier] = df[identifier].apply(lambda x: encrypt_value(x, fernet))
+            df[identifier] = "****"               # simple suppression                               # comment out this for encryption
+            # df[identifier] = df[identifier].apply(lambda x: encrypt_value(x, fernet))              # uncomment for encryption
 
     hierarchy_tree_dict = h_tree.build_all_hierarchy_tree(hierarchy_file_dir)
 
@@ -251,6 +251,11 @@ def anonymize_execute(k_value, input_filename="dataset.csv"):
                     # Create a readable format
                     df['time'] = df['datetime'].dt.strftime('%Y-%m-%d %H:%M:%S')
                 
+                # Apply simple masking to identifiers
+                for identifier in identifiers:
+                    if identifier in df.columns:
+                        df[identifier] = "****"
+                
                 # Return a preview
                 df_columns = [col for col in ['time', 'acc_x', 'acc_y', 'acc_z', 'stress_level', 'patient_id'] if col in df.columns]
                 if not df_columns:
@@ -306,8 +311,8 @@ def anonymize_execute(k_value, input_filename="dataset.csv"):
         else:
             # For other datasets, select appropriate columns or first few columns
             try:
-                result_columns = qi_list[:5]  # First 5 QI columns
-                df_short = data_frame[result_columns].iloc[:40]
+                result_columns = qi_list[:5]
+                df_short = data_frame[result_columns].iloc[800:840]
             except:
                 # Fallback to first 6 columns
                 df_short = data_frame.iloc[:40, :6]
