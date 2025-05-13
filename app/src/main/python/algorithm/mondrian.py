@@ -2,10 +2,10 @@
 import os
 import pandas as pd
 import time
-from cryptography.fernet import Fernet
-from cryptography.hazmat.primitives import hashes
-from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
-import base64
+# from cryptography.fernet import Fernet
+# from cryptography.hazmat.primitives import hashes
+# from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+# import base64
 
 # custom library
 import algorithm.hierarchy_tree as h_tree
@@ -131,40 +131,41 @@ def check_k_anonymity(df, qi_list, k):
     return check_k_anonymity_flag
 
 
-def generate_key(password):
-    password = password.encode()
-    salt = b'salt_'  # You can change this salt, but keep it constant
-    kdf = PBKDF2HMAC(
-        algorithm=hashes.SHA256(),
-        length=32,
-        salt=salt,
-        iterations=100000,
-    )
-    key = base64.urlsafe_b64encode(kdf.derive(password))
-    return key
-
+# def generate_key(password):
+#     password = password.encode()
+#     salt = b'salt_'  # You can change this salt, but keep it constant
+#     kdf = PBKDF2HMAC(
+#         algorithm=hashes.SHA256(),
+#         length=32,
+#         salt=salt,
+#         iterations=100000,
+#     )
+#     key = base64.urlsafe_b64encode(kdf.derive(password))
+#     return key
+#
 # def encrypt_value(value, fernet):
 #     return fernet.encrypt(str(value).encode()).decode()
+#
+# def decrypt_value(value, fernet):
+#     return fernet.decrypt(value.encode()).decode()
+#
+#     return df
 
-def decrypt_value(value, fernet):
-    return fernet.decrypt(value.encode()).decode()
-
-    return df
-
-
-# def run_anonymize(qi_list, data_file, hierarchy_file_dir, k=5):  # original of old
-# def run_anonymize(qi_list, sensitive_attributes, identifier, data_file, hierarchy_file_dir, k=5, password=None): # original of new
-def run_anonymize(qi_list, identifiers, data_file, hierarchy_file_dir, k=5, password=None):
+# def run_anonymize(qi_list, identifiers, data_file, hierarchy_file_dir, k=5, password=None):
+def run_anonymize(qi_list, identifiers, data_file, hierarchy_file_dir, k=5):
     # suppose n records(num of rows). k-anonymity. m quasi-identifiers. Calculate time complexity
     df = pd.read_csv(data_file)
+    # for identifier in identifiers:
+    #     if identifier in df.columns:
+    #     df[identifier] = df[identifier].apply(lambda x: "x")
 
-    if password:
-        key = generate_key(password)
-        fernet = Fernet(key)
-        for identifier in identifiers:
-            if identifier in df.columns:
-                df[identifier] = df[identifier].apply(lambda x: x)
-                # df[identifier] = df[identifier].apply(lambda x: encrypt_value(x, fernet))
+    # if password:
+    #     key = generate_key(password)
+    #     fernet = Fernet(key)
+    #     for identifier in identifiers:
+    #         if identifier in df.columns:
+    #             # df[identifier] = df[identifier].apply(lambda x: x)
+    #             df[identifier] = df[identifier].apply(lambda x: encrypt_value(x, fernet))
 
     hierarchy_tree_dict = h_tree.build_all_hierarchy_tree(hierarchy_file_dir)
     print(f"hirerarchy_tree_dict: {hierarchy_tree_dict})")
@@ -192,44 +193,6 @@ def run_anonymize(qi_list, identifiers, data_file, hierarchy_file_dir, k=5, pass
     return df
 
 
-def decrypt_and_compare(anonymized_file, original_file, identifiers, password):
-    """
-    Decrypts the anonymized data and compares it with the original data.
-
-    :param anonymized_file: Path to the anonymized CSV file
-    :param original_file: Path to the original CSV file
-    :param identifiers: List of identifier column names
-    :param password: Password used for encryption
-    """
-    # Read the anonymized and original data
-    anonymized_df = pd.read_csv(anonymized_file)
-    original_df = pd.read_csv(original_file)
-
-    # Generate the key from the password
-    key = generate_key(password)
-    fernet = Fernet(key)
-
-    # Decrypt the identifiers in the anonymized data
-    for identifier in identifiers:
-        if identifier in anonymized_df.columns:
-            anonymized_df[identifier] = anonymized_df[identifier].apply(lambda x: decrypt_value(x, fernet))
-
-    # Compare the decrypted data with the original data
-    for identifier in identifiers:
-        if identifier in anonymized_df.columns and identifier in original_df.columns:
-            print(f"\nComparing {identifier}:")
-            print("Anonymized (Decrypted):")
-            print(anonymized_df[identifier].head())
-            print("\nOriginal:")
-            print(original_df[identifier].head())
-
-            # Check if the decrypted values match the original values
-            match = (anonymized_df[identifier] == original_df[identifier]).all()
-            print(f"\nAll values match: {match}")
-
-    print("\nComparison complete.")
-
-
 #### DUMMY FUNCTION TO EXECUTE THE ANONYMIZATION #################################
 # the below function is called in the main function - MainActivity
 # above codes should not be changed
@@ -248,13 +211,7 @@ def anonymize_execute(k_value, input_filename="dataset.csv"):
     hierarchy_file_path = os.path.join(current_dir, "hierarchy/")  # /data/data/com.example.pythoncalculation/files/chaquopy/AssetFinder/app/algorithm/hierarchy
     
     # Set quasi-identifiers and identifiers based on the input file
-    if input_filename == "dataset.csv":
-        # Original dataset.csv structure
-        qi_list = ['sex', 'age', 'race', 'marital-status', 'education', 'native-country', 'workclass', 'occupation']
-        identifiers = ['ID', 'soc_sec_id', 'given_name', 'surname']
-        # Normal delimiter (comma) - no special handling needed
-        delimiter = ','
-    elif input_filename == "wearable_input_raw.csv":
+    if input_filename == "wearable_input_raw.csv":
         # Wearable dataset structure - these are the columns we want to anonymize
         qi_list = ['timestamp', 'acc_x', 'acc_y', 'acc_z', 'stress_level']
         identifiers = ['patient_id']
@@ -267,17 +224,17 @@ def anonymize_execute(k_value, input_filename="dataset.csv"):
         delimiter = ','
     
     k = k_value
-    password_received = " "
+    # password_received = " "
     # log ########################################################################################
     print(f"Running anonymization on {input_filename}")
     print(f"Using delimiter: {delimiter}")
     print(f"Quasi-identifiers: {qi_list}")
     print(f"Identifiers: {identifiers}")
     print(f"run_anonymize executing with K = {k}")
-    if password_received == " ":
-        print(f"run_anonymize executing with default password")
-    else:
-        print(f"run_anonymize executing with given password")
+    # if password_received == " ":
+    #     print(f"run_anonymize executing with default password")
+    # else:
+    #     print(f"run_anonymize executing with given password")
     
     # anonymize_execute function call  ###########################################################
     try:
@@ -354,8 +311,8 @@ def anonymize_execute(k_value, input_filename="dataset.csv"):
                 return f"Error processing wearable data: {str(e)}"
                 
         # Regular dataset processing with hierarchy trees
-        data_frame = run_anonymize(qi_list, identifiers, input_path, hierarchy_file_path, k=k, password=password_received)
-        
+        # data_frame = run_anonymize(qi_list, identifiers, input_path, hierarchy_file_path, k=k, password=password_received)
+        data_frame = run_anonymize(qi_list, identifiers, input_path, hierarchy_file_path, k=k)
         # output ####################################################################################
         os.makedirs(output_dir, exist_ok=True) # Create the directory if it doesn't exist
         # specifying the csv file name with k-value
