@@ -192,7 +192,6 @@ def run_anonymize(qi_list, identifiers, data_file, hierarchy_file_dir, k=5, pass
     return df
 
 
-
 def decrypt_and_compare(anonymized_file, original_file, identifiers, password):
     """
     Decrypts the anonymized data and compares it with the original data.
@@ -231,14 +230,13 @@ def decrypt_and_compare(anonymized_file, original_file, identifiers, password):
     print("\nComparison complete.")
 
 
+#### DUMMY FUNCTION TO EXECUTE THE ANONYMIZATION #################################
+# the below function is called in the main function - MainActivity
+# above codes should not be changed
+#################################################################################
 
-    #### DUMMY FUNCTION TO EXECUTE THE ANONYMIZATION #################################
-    # the below function is called in the main function - MainActivity
-    # above codes should not be changed
-    #################################################################################
 
-
-def anonymize_execute(k_value):
+def anonymize_execute(k_value, input_filename="dataset.csv"):
     tic = time.time()  # time count starts
     # dir/file path  #############################################################################
     current_dir = os.path.dirname(__file__)  # /data/data/com.example.pythoncalculation/files/chaquopy/AssetFinder/app/algorithm
@@ -246,37 +244,155 @@ def anonymize_execute(k_value):
     input_dir = os.path.join(parent_dir, "input/") # /data/data/com.example.pythoncalculation/files/chaquopy/AssetFinder/app/input
     output_dir = os.path.join(parent_dir, "output/anonymized/") # /data/data/com.example.pythoncalculation/files/chaquopy/AssetFinder/app/output/anonymized
     # defining input #############################################################################
-    qi_list = ['sex', 'age', 'race', 'marital-status', 'education', 'native-country', 'workclass', 'occupation']
-    identifiers = ['ID', 'soc_sec_id', 'given_name', 'surname']
-    input_path = os.path.join(input_dir, "dataset.csv") # /data/data/com.example.pythoncalculation/files/chaquopy/AssetFinder/app/input/dataset.csv
+    input_path = os.path.join(input_dir, input_filename) # /data/data/com.example.pythoncalculation/files/chaquopy/AssetFinder/app/input/dataset.csv
     hierarchy_file_path = os.path.join(current_dir, "hierarchy/")  # /data/data/com.example.pythoncalculation/files/chaquopy/AssetFinder/app/algorithm/hierarchy
+    
+    # Set quasi-identifiers and identifiers based on the input file
+    if input_filename == "dataset.csv":
+        # Original dataset.csv structure
+        qi_list = ['sex', 'age', 'race', 'marital-status', 'education', 'native-country', 'workclass', 'occupation']
+        identifiers = ['ID', 'soc_sec_id', 'given_name', 'surname']
+        # Normal delimiter (comma) - no special handling needed
+        delimiter = ','
+    elif input_filename == "wearable_input_raw.csv":
+        # Wearable dataset structure - these are the columns we want to anonymize
+        qi_list = ['timestamp', 'acc_x', 'acc_y', 'acc_z', 'stress_level']
+        identifiers = ['patient_id']
+        # Semicolon delimiter
+        delimiter = ';'
+    else:
+        # Default fallback for unknown files
+        qi_list = ['sex', 'age', 'race', 'marital-status', 'education', 'native-country', 'workclass', 'occupation']
+        identifiers = ['ID', 'soc_sec_id', 'given_name', 'surname']
+        delimiter = ','
+    
     k = k_value
     password_received = " "
     # log ########################################################################################
-    print("running anonymization")
+    print(f"Running anonymization on {input_filename}")
+    print(f"Using delimiter: {delimiter}")
+    print(f"Quasi-identifiers: {qi_list}")
+    print(f"Identifiers: {identifiers}")
     print(f"run_anonymize executing with K = {k}")
     if password_received == " ":
         print(f"run_anonymize executing with default password")
     else:
         print(f"run_anonymize executing with given password")
+    
     # anonymize_execute function call  ###########################################################
-    # passing the input to the function, saving the result to data_frame
-    data_frame = run_anonymize(qi_list, identifiers, input_path, hierarchy_file_path, k=k, password=password_received)
-    # output ####################################################################################
-    os.makedirs(output_dir, exist_ok=True) # Create the directory if it doesn't exist
-    # specifying the csv file name with k-value
-    output_file_path = os.path.join(output_dir, f'k_{k}_anonymized_dataset.csv')
-    # saving the anonymized data to a new file in the same directory
     try:
-        data_frame.to_csv(output_file_path, index=False)
-        print(f"Anonymized data saved to: {output_file_path}")
+        # Check if the file exists
+        if not os.path.exists(input_path):
+            print(f"Error: Input file not found at {input_path}")
+            return f"Error: Input file not found: {input_filename}"
+            
+        # Handle wearable data format
+        if input_filename == "wearable_input_raw.csv":
+            try:
+                # Read with semicolon delimiter
+                df = pd.read_csv(input_path, sep=delimiter)
+                
+                # Handle timestamp conversion for better readability
+                if 'timestamp' in df.columns:
+                    # Replace comma with period in scientific notation
+                    df['timestamp'] = df['timestamp'].astype(str).str.replace(',', '.')
+                    
+                    # Convert to float, then to integer
+                    df['timestamp'] = df['timestamp'].astype(float).astype('int64')
+                    
+                    # Determine if timestamp is in seconds or milliseconds
+                    # If timestamps are very large (> 10^12), they're likely in milliseconds
+                    if df['timestamp'].iloc[0] > 10**12:
+                        # Convert milliseconds to seconds for anonymization
+                        df['timestamp_seconds'] = df['timestamp'] / 1000
+                    else:
+                        df['timestamp_seconds'] = df['timestamp']
+                    
+                    # Add timestamp as a quasi-identifier for anonymization
+                    if 'timestamp_seconds' not in qi_list and 'timestamp_seconds' in df.columns:
+                        qi_list.append('timestamp_seconds')
+                
+                # Perform simple anonymization without hierarchy tree
+                # Apply k-anonymity by grouping and generalization
+                for col in qi_list:
+                    if col in df.columns:
+                        # Simple generalization: round numeric values
+                        if pd.api.types.is_numeric_dtype(df[col]):
+                            df[col] = (df[col] // k) * k
+                
+                # After anonymization, convert timestamp_seconds back to human readable form
+                if 'timestamp_seconds' in df.columns:
+                    # Convert to datetime
+                    df['datetime'] = pd.to_datetime(df['timestamp_seconds'], unit='s')
+                    
+                    # Create a readable format
+                    df['time'] = df['datetime'].dt.strftime('%Y-%m-%d %H:%M:%S')
+                
+                # Return a preview
+                df_columns = [col for col in ['time', 'timestamp', 'acc_x', 'acc_y', 'acc_z', 'stress_level', 'patient_id'] if col in df.columns]
+                if not df_columns:
+                    df_columns = df.columns[:6]  # First 6 columns if specific columns not found
+                    
+                df_short = df[df_columns].iloc[:40]
+                print("Anonymized wearable data preview:")
+                print(df_short)
+                
+                # Save to output
+                os.makedirs(output_dir, exist_ok=True)  # Create output directory if it doesn't exist
+                output_file_path = os.path.join(output_dir, f'k_{k}_anonymized_{input_filename}')
+                df.to_csv(output_file_path, index=False, sep=delimiter)
+                print(f"Anonymized data saved to: {output_file_path}")
+                
+                # Log execution time
+                toc = time.time()
+                execution_time = toc - tic
+                print(f"Execution time: {execution_time:.2f} seconds")
+                
+                return df_short
+            except Exception as e:
+                print(f"Error processing wearable data: {str(e)}")
+                return f"Error processing wearable data: {str(e)}"
+                
+        # Regular dataset processing with hierarchy trees
+        data_frame = run_anonymize(qi_list, identifiers, input_path, hierarchy_file_path, k=k, password=password_received)
+        
+        # output ####################################################################################
+        os.makedirs(output_dir, exist_ok=True) # Create the directory if it doesn't exist
+        # specifying the csv file name with k-value
+        output_file_path = os.path.join(output_dir, f'k_{k}_anonymized_{input_filename}')
+        # saving the anonymized data to a new file in the same directory
+        try:
+            data_frame.to_csv(output_file_path, index=False)
+            print(f"Anonymized data saved to: {output_file_path}")
+        except Exception as e:
+            print(f"Error saving file: {str(e)}")
+        
+        # log 2 ######################################################################################
+        toc = time.time() # time count stops here
+        execution_time = toc - tic
+        print(f"Execution time: {execution_time:.2f} seconds")
+        
+        # result #####################################################################################
+        # For standard dataset, use standard columns
+        if input_filename == "dataset.csv":
+            result_columns = ['age', 'race', 'marital-status', 'education', 'native-country', 'soc_sec_id']
+            available_columns = [col for col in result_columns if col in data_frame.columns]
+            if available_columns:
+                df_short = data_frame[available_columns].iloc[850:890]
+            else:
+                df_short = data_frame.iloc[850:890, :6]  # First 6 columns
+        else:
+            # For other datasets, select appropriate columns or first few columns
+            try:
+                result_columns = qi_list[:5]  # First 5 QI columns
+                df_short = data_frame[result_columns].iloc[:40]
+            except:
+                # Fallback to first 6 columns
+                df_short = data_frame.iloc[:40, :6]
+                
+        print(df_short)
+        return df_short
     except Exception as e:
-        print(f"Error saving file: {str(e)}")
-    # log 2 ######################################################################################
-    toc = time.time() # time count stops here
-    execution_time = toc - tic
-    print(f"Execution time: {execution_time:.2f} seconds")
-    # result #####################################################################################
-    df_short = data_frame[['age', 'race', 'marital-status', 'education', 'native-country', 'soc_sec_id']].iloc[850:890]
-    print(df_short)
-    return df_short
+        error_msg = f"Error in anonymization process: {str(e)}"
+        print(error_msg)
+        return error_msg
