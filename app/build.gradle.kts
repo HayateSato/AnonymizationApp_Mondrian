@@ -72,6 +72,9 @@ dependencies {
     androidTestImplementation(libs.ext.junit)
     androidTestImplementation(libs.espresso.core)
 
+    // Gson for JSON parsing
+    implementation("com.google.code.gson:gson:2.10.1")
+
     implementation ("org.eclipse.paho:org.eclipse.paho.client.mqttv3:1.2.5")
     
     // Navigation Component
@@ -82,4 +85,3 @@ dependencies {
     implementation("androidx.cardview:cardview:1.0.0")
 
 }
-
