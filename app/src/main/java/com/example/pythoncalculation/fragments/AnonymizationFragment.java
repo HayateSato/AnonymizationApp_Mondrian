@@ -38,7 +38,7 @@ public class AnonymizationFragment extends Fragment {
     private Python py;
     private PyObject mondrianModule;
     private boolean useWearableDataset = false;
-    private String selectedDatasetFile = "dataset.csv";
+    static private String selectedDatasetFile = "dataset.csv";
     private SharedPreferences sharedPreferences;
 
     private TextView resultLabel;
