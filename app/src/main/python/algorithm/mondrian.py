@@ -291,6 +291,27 @@ def anonymize_execute(k_value, input_filename="dataset.csv"):
             try:
                 # Read with semicolon delimiter
                 df = pd.read_csv(input_path, sep=delimiter)
+                
+                # Handle timestamp conversion for better readability
+                if 'timestamp' in df.columns:
+                    # Replace comma with period in scientific notation
+                    df['timestamp'] = df['timestamp'].astype(str).str.replace(',', '.')
+                    
+                    # Convert to float, then to integer
+                    df['timestamp'] = df['timestamp'].astype(float).astype('int64')
+                    
+                    # Determine if timestamp is in seconds or milliseconds
+                    # If timestamps are very large (> 10^12), they're likely in milliseconds
+                    if df['timestamp'].iloc[0] > 10**12:
+                        # Convert milliseconds to seconds for anonymization
+                        df['timestamp_seconds'] = df['timestamp'] / 1000
+                    else:
+                        df['timestamp_seconds'] = df['timestamp']
+                    
+                    # Add timestamp as a quasi-identifier for anonymization
+                    if 'timestamp_seconds' not in qi_list and 'timestamp_seconds' in df.columns:
+                        qi_list.append('timestamp_seconds')
+                
                 # Perform simple anonymization without hierarchy tree
                 # Apply k-anonymity by grouping and generalization
                 for col in qi_list:
@@ -299,8 +320,16 @@ def anonymize_execute(k_value, input_filename="dataset.csv"):
                         if pd.api.types.is_numeric_dtype(df[col]):
                             df[col] = (df[col] // k) * k
                 
+                # After anonymization, convert timestamp_seconds back to human readable form
+                if 'timestamp_seconds' in df.columns:
+                    # Convert to datetime
+                    df['datetime'] = pd.to_datetime(df['timestamp_seconds'], unit='s')
+                    
+                    # Create a readable format
+                    df['time'] = df['datetime'].dt.strftime('%Y-%m-%d %H:%M:%S')
+                
                 # Return a preview
-                df_columns = [col for col in ['timestamp', 'acc_x', 'acc_y', 'acc_z', 'stress_level', 'patient_id'] if col in df.columns]
+                df_columns = [col for col in ['time', 'timestamp', 'acc_x', 'acc_y', 'acc_z', 'stress_level', 'patient_id'] if col in df.columns]
                 if not df_columns:
                     df_columns = df.columns[:6]  # First 6 columns if specific columns not found
                     
