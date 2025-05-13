@@ -57,7 +57,7 @@ def get_wearable_csvfile():
             print(df[['timestamp', 'time']].head())
         
         # Display only the most relevant columns for preview
-        relevant_columns = ['time', 'timestamp', 'acc_x', 'acc_y', 'acc_z', 'stress_level', 'patient_id']
+        relevant_columns = ['time', 'acc_x', 'acc_y', 'acc_z', 'stress_level', 'patient_id']
         
         # Check which columns actually exist in the file
         existing_columns = [col for col in relevant_columns if col in df.columns]
