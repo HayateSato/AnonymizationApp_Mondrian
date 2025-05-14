@@ -21,6 +21,8 @@ import com.chaquo.python.PyObject;
 import com.chaquo.python.Python;
 import com.example.pythoncalculation.databinding.ActivityMainBinding;
 import com.example.pythoncalculation.fragments.AnonymizationFragment;
+import com.google.gson.Gson;
+import com.google.gson.JsonSyntaxException;
 
 import org.eclipse.paho.client.mqttv3.IMqttActionListener;
 import org.eclipse.paho.client.mqttv3.IMqttAsyncClient;
@@ -54,6 +56,7 @@ public class MainActivity extends AppCompatActivity {
     // SharedPreferences keys
     private static final String PREF_NAME = "MqttPreferences";
     private static final String PREF_BROKER_URL = "broker_url";
+    private static final String PREF_USE_WEARABLE = "use_wearable";
 
     /**
      * List of valid K values for anonymization.
@@ -79,6 +82,9 @@ public class MainActivity extends AppCompatActivity {
     
     // Navigation
     private NavController navController;
+    
+    // Gson for JSON parsing
+    private Gson gson;
 
     /**
      * Called when the activity is first created.
@@ -96,6 +102,9 @@ public class MainActivity extends AppCompatActivity {
         
         // Get reference to the status display
         statusTextView = binding.statusTextView;
+        
+        // Initialize Gson for JSON parsing
+        gson = new Gson();
         
         // Get the NavController for managing fragment navigation
         NavHostFragment navHostFragment = (NavHostFragment) getSupportFragmentManager()
@@ -212,91 +221,21 @@ public class MainActivity extends AppCompatActivity {
                     String payload = new String(message.getPayload());
                     Log.d(TAG, "Message arrived: " + payload);
 
-                    // Check if message follows the format "K Value = X"
-                    if (payload.startsWith("K Value =")) {
-                        try {
-                            // Extract the k-value from the message
-                            String kValueStr = payload.substring("K Value =".length()).trim();
-                            final int kValue = Integer.parseInt(kValueStr);
-                            
-                            // Log the extracted k-value
-                            Log.d(TAG, "Extracted k-value: " + kValue);
-                            
-                            // Validate that the k-value is one of the acceptable values
-                            if (isValidKValue(kValue)) {
-                                // Update UI to show the message was received
-                                runOnUiThread(() -> {
-                                    statusTextView.setText("Received command: K Value = " + kValue);
-                                    showToast("Received MQTT command: K Value = " + kValue);
-                                    
-                                    // Navigate to the anonymization fragment first
-                                    if (navController != null) {
-                                        navController.navigate(R.id.anonymizationFragment);
-                                        
-                                        // Use a longer delay to ensure the fragment is created and available
-                                        // before we attempt to interact with it
-                                        new Handler().postDelayed(() -> {
-                                            try {
-                                                // Try to find the current fragment from the NavHostFragment
-                                                NavHostFragment navHostFragment = (NavHostFragment) getSupportFragmentManager()
-                                                    .findFragmentById(R.id.nav_host_fragment);
-                                                if (navHostFragment != null) {
-                                                    Fragment currentFragment = navHostFragment.getChildFragmentManager()
-                                                        .getFragments().get(0);
-                                                    
-                                                    if (currentFragment instanceof AnonymizationFragment) {
-                                                        AnonymizationFragment fragment = (AnonymizationFragment) currentFragment;
-                                                        // Start anonymization with the k-value
-                                                        fragment.startAnonymization(kValue);
-                                                        Log.d(TAG, "Started anonymization directly with k=" + kValue);
-                                                    } else {
-                                                        Log.e(TAG, "Current fragment is not AnonymizationFragment: " + 
-                                                            (currentFragment != null ? currentFragment.getClass().getSimpleName() : "null"));
-                                                        // Try with fragment result as fallback
-                                                        Bundle result = new Bundle();
-                                                        result.putInt("k_value", kValue);
-                                                        getSupportFragmentManager().setFragmentResult("anonymize_request", result);
-                                                    }
-                                                } else {
-                                                    Log.e(TAG, "NavHostFragment is null");
-                                                }
-                                            } catch (Exception e) {
-                                                Log.e(TAG, "Error getting AnonymizationFragment", e);
-                                                // Try with fragment result as fallback
-                                                Bundle result = new Bundle();
-                                                result.putInt("k_value", kValue);
-                                                getSupportFragmentManager().setFragmentResult("anonymize_request", result);
-                                            }
-                                        }, 1500); // Use a longer delay to ensure fragment is ready
-                                    } else {
-                                        Log.e(TAG, "NavController is null");
-                                    }
-                                });
-                            } else {
-                                // Invalid k-value received
-                                Log.e(TAG, "Invalid k-value received: " + kValue);
-                                runOnUiThread(() -> {
-                                    statusTextView.setText("Invalid K value: " + kValue);
-                                    showHeadsUpMessage("Invalid K Value", 
-                                            "Received K = " + kValue + ", but only values 2, 5, 10, 30, 50, and 500 are allowed.");
-                                });
-                            }
-                        } catch (NumberFormatException e) {
-                            // Failed to parse the k-value
-                            Log.e(TAG, "Invalid k-value format", e);
-                            runOnUiThread(() -> {
-                                statusTextView.setText("Invalid k-value format: " + payload);
-                                showHeadsUpMessage("Invalid Format", 
-                                        "The received message has an invalid format. Expected 'K Value = X' where X is a number.");
-                            });
+                    try {
+                        // Try to parse the message as JSON
+                        AnonymizationCommand command = gson.fromJson(payload, AnonymizationCommand.class);
+                        
+                        // Check if the message was successfully parsed
+                        if (command != null) {
+                            processJsonCommand(command);
+                        } else {
+                            handleInvalidMessage("JSON parsing error", "Received message is not in the correct format.");
                         }
-                    } else {
-                        // Message format not recognized
-                        runOnUiThread(() -> {
-                            statusTextView.setText("Unknown command: " + payload);
-                            showHeadsUpMessage("Unknown Command", 
-                                    "Expected format: 'K Value = X' where X is one of: 2, 5, 10, 30, 50, 500");
-                        });
+                    } catch (JsonSyntaxException e) {
+                        // The message is not a valid JSON
+                        Log.e(TAG, "Invalid JSON format", e);
+                        handleInvalidMessage("Invalid JSON Format", 
+                                "The received message is not in valid JSON format. Expected: {\"kValue\": X, \"dataset\": \"standard/wearable\"}");
                     }
                 }
 
@@ -311,6 +250,112 @@ public class MainActivity extends AppCompatActivity {
             Log.e(TAG, "MQTT Error", e);
             e.printStackTrace();
         }
+    }
+    
+    /**
+     * Processes a valid JSON command for anonymization.
+     * Validates the fields and starts the anonymization process if valid.
+     * 
+     * @param command The parsed AnonymizationCommand object
+     */
+    private void processJsonCommand(AnonymizationCommand command) {
+        // Log the parsed command
+        Log.d(TAG, "Parsed command: " + command.toString());
+        
+        // Get the k-value from the command
+        final int kValue = command.getKValue();
+        
+        // Validate the k-value
+        if (!isValidKValue(kValue)) {
+            // Invalid k-value
+            handleInvalidMessage("Invalid K Value", 
+                    "Received K = " + kValue + ", but only values 2, 5, 10, 30, 50, and 500 are allowed.");
+            return;
+        }
+        
+        // Validate the dataset
+        if (!command.isValidDataset()) {
+            // Invalid dataset
+            handleInvalidMessage("Invalid Dataset", 
+                    "Received dataset = '" + command.getDataset() + "', but only 'standard' or 'wearable' are allowed.");
+            return;
+        }
+        
+        // At this point, both k-value and dataset are valid
+        final boolean useWearable = "wearable".equalsIgnoreCase(command.getDataset());
+        
+        // Save the dataset preference
+        SharedPreferences.Editor editor = getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE).edit();
+        editor.putBoolean(PREF_USE_WEARABLE, useWearable);
+        editor.apply();
+        
+        // Update UI to show the message was received
+        runOnUiThread(() -> {
+            statusTextView.setText("Received command: K Value = " + kValue + ", Dataset = " + command.getDataset());
+            showToast("Received MQTT command: K Value = " + kValue + ", Dataset = " + command.getDataset());
+            
+            // Navigate to the anonymization fragment
+            if (navController != null) {
+                navController.navigate(R.id.anonymizationFragment);
+                
+                // Use a delay to ensure the fragment is created and available
+                new Handler().postDelayed(() -> {
+                    try {
+                        // Try to find the current fragment from the NavHostFragment
+                        NavHostFragment navHostFragment = (NavHostFragment) getSupportFragmentManager()
+                            .findFragmentById(R.id.nav_host_fragment);
+                        if (navHostFragment != null) {
+                            Fragment currentFragment = navHostFragment.getChildFragmentManager()
+                                .getFragments().get(0);
+                            
+                            if (currentFragment instanceof AnonymizationFragment) {
+                                AnonymizationFragment fragment = (AnonymizationFragment) currentFragment;
+                                
+                                // Set the dataset first
+                                fragment.setDataset(useWearable);
+                                
+                                // Then start anonymization with the k-value
+                                fragment.startAnonymization(kValue);
+                                Log.d(TAG, "Started anonymization with k=" + kValue + ", dataset=" + command.getDataset());
+                            } else {
+                                Log.e(TAG, "Current fragment is not AnonymizationFragment: " + 
+                                    (currentFragment != null ? currentFragment.getClass().getSimpleName() : "null"));
+                                // Try with fragment result as fallback
+                                Bundle result = new Bundle();
+                                result.putInt("k_value", kValue);
+                                result.putBoolean("use_wearable", useWearable);
+                                getSupportFragmentManager().setFragmentResult("anonymize_request", result);
+                            }
+                        } else {
+                            Log.e(TAG, "NavHostFragment is null");
+                        }
+                    } catch (Exception e) {
+                        Log.e(TAG, "Error getting AnonymizationFragment", e);
+                        // Try with fragment result as fallback
+                        Bundle result = new Bundle();
+                        result.putInt("k_value", kValue);
+                        result.putBoolean("use_wearable", useWearable);
+                        getSupportFragmentManager().setFragmentResult("anonymize_request", result);
+                    }
+                }, 1500); // Use a delay to ensure fragment is ready
+            } else {
+                Log.e(TAG, "NavController is null");
+            }
+        });
+    }
+    
+    /**
+     * Handles invalid messages by showing an error and updating the UI.
+     * 
+     * @param title The error title
+     * @param message The error message
+     */
+    private void handleInvalidMessage(String title, String message) {
+        Log.e(TAG, title + ": " + message);
+        runOnUiThread(() -> {
+            statusTextView.setText(title + ": " + message);
+            showHeadsUpMessage(title, message);
+        });
     }
 
     /**

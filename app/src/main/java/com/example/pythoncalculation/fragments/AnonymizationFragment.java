@@ -94,8 +94,25 @@ public class AnonymizationFragment extends Fragment {
             (requestKey, result) -> {
                 if (result.containsKey("k_value")) {
                     int kValue = result.getInt("k_value");
-                    Log.d(TAG, "Received fragment result with k_value = " + kValue);
-                    Toast.makeText(getContext(), "Starting anonymization with K = " + kValue, Toast.LENGTH_SHORT).show();
+                    
+                    // Check if we have dataset selection as well
+                    if (result.containsKey("use_wearable")) {
+                        boolean newUseWearable = result.getBoolean("use_wearable");
+                        
+                        // Update dataset selection if it's different
+                        if (newUseWearable != useWearableDataset) {
+                            setDataset(newUseWearable);
+                        }
+                    }
+                    
+                    Log.d(TAG, "Received fragment result with k_value = " + kValue + 
+                            ", dataset = " + (useWearableDataset ? "wearable" : "standard"));
+                    
+                    Toast.makeText(getContext(), 
+                            "Starting anonymization with K = " + kValue + 
+                            " on " + (useWearableDataset ? "wearable" : "standard") + " dataset", 
+                            Toast.LENGTH_SHORT).show();
+                    
                     startAnonymization(kValue);
                 }
             });
@@ -109,14 +126,11 @@ public class AnonymizationFragment extends Fragment {
                 if (newUseWearable != useWearableDataset || 
                     (newSelectedFile != null && !newSelectedFile.equals(selectedDatasetFile))) {
                     
-                    useWearableDataset = newUseWearable;
-                    selectedDatasetFile = newSelectedFile != null ? newSelectedFile : "dataset.csv";
+                    setDataset(newUseWearable);
                     
-                    // Update radio buttons to match
-                    standardDatasetRadio.setChecked(!useWearableDataset);
-                    wearableDatasetRadio.setChecked(useWearableDataset);
-                    
-                    updateResultLabel();
+                    if (newSelectedFile != null) {
+                        selectedDatasetFile = newSelectedFile;
+                    }
                     
                     Toast.makeText(
                         getContext(), 
@@ -130,18 +144,35 @@ public class AnonymizationFragment extends Fragment {
         Log.d(TAG, "AnonymizationFragment is now ready");
     }
     
+    /**
+     * Sets the dataset to use for anonymization based on the MQTT command.
+     *
+     * @param useWearable true to use wearable dataset, false to use standard dataset
+     */
+    public void setDataset(boolean useWearable) {
+        this.useWearableDataset = useWearable;
+        selectedDatasetFile = useWearable ? "wearable_input_raw.csv" : "dataset.csv";
+        
+        // Update radio buttons to match selection
+        if (standardDatasetRadio != null && wearableDatasetRadio != null) {
+            standardDatasetRadio.setChecked(!useWearable);
+            wearableDatasetRadio.setChecked(useWearable);
+        }
+        
+        // Save to preferences
+        if (sharedPreferences != null) {
+            SharedPreferences.Editor editor = sharedPreferences.edit();
+            editor.putBoolean(PREF_USE_WEARABLE, useWearable);
+            editor.apply();
+        }
+        
+        updateResultLabel();
+    }
+    
     private void setupRadioButtonListeners() {
         standardDatasetRadio.setOnClickListener(v -> {
             if (standardDatasetRadio.isChecked()) {
-                useWearableDataset = false;
-                selectedDatasetFile = "dataset.csv";
-                
-                // Save preference
-                SharedPreferences.Editor editor = sharedPreferences.edit();
-                editor.putBoolean(PREF_USE_WEARABLE, false);
-                editor.apply();
-                
-                updateResultLabel();
+                setDataset(false);
                 
                 Toast.makeText(
                     getContext(), 
@@ -153,15 +184,7 @@ public class AnonymizationFragment extends Fragment {
         
         wearableDatasetRadio.setOnClickListener(v -> {
             if (wearableDatasetRadio.isChecked()) {
-                useWearableDataset = true;
-                selectedDatasetFile = "wearable_input_raw.csv";
-                
-                // Save preference
-                SharedPreferences.Editor editor = sharedPreferences.edit();
-                editor.putBoolean(PREF_USE_WEARABLE, true);
-                editor.apply();
-                
-                updateResultLabel();
+                setDataset(true);
                 
                 Toast.makeText(
                     getContext(), 

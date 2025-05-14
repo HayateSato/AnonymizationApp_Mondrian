@@ -312,7 +312,7 @@ def anonymize_execute(k_value, input_filename="dataset.csv"):
             # For other datasets, select appropriate columns or first few columns
             try:
                 result_columns = qi_list[:5]
-                df_short = data_frame[result_columns].iloc[800:840]
+                df_short = data_frame[result_columns].iloc[:40]
             except:
                 # Fallback to first 6 columns
                 df_short = data_frame.iloc[:40, :6]
